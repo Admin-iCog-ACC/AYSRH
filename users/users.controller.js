@@ -5,6 +5,7 @@ const userService = require('./user.service');
 // routes
 router.post('/authenticate', authenticate);
 router.post('/register', register);
+ router.post('/apply/:id', update);
 router.get('/', getAll);
 router.get('/current', getCurrent);
 router.get('/:id', getById);
@@ -15,13 +16,23 @@ module.exports = router;
 
 function authenticate(req, res, next) {
     userService.authenticate(req.body)
-        .then(user => user ? res.json(user) : res.status(400).json({ message: 'Username or password is incorrect' }))
+        .then(user => user ? res.json(user) : res.status(400).json({ message: 'email or password is incorrect' }))
         .catch(err => next(err));
 }
 
 function register(req, res, next) {
     userService.create(req.body)
-        .then(() => res.json({}))
+        .then(() => res.json({
+            message: 'You have successful registered a user',
+        }))
+        .catch(err => next(err));
+}
+
+function apply(req, res, next) {
+    userService.createApplication(req.body)
+        .then(() => res.json({
+            message: 'You have successful created your application',
+        }))
         .catch(err => next(err));
 }
 

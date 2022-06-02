@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('_helpers/db');
 const User = db.User;
+const Application = db.Application;
 
 module.exports = {
     authenticate,
@@ -10,11 +11,15 @@ module.exports = {
     getById,
     create,
     update,
+    createApplication,
     delete: _delete
+    
 };
 
-async function authenticate({ username, password }) {
-    const user = await User.findOne({ username });
+
+//login authentication
+async function authenticate({ email, password }) {
+    const user = await User.findOne({ email });
     if (user && bcrypt.compareSync(password, user.hash)) {
         const token = jwt.sign({ sub: user.id }, config.secret, { expiresIn: '7d' });
         return {
@@ -32,10 +37,12 @@ async function getById(id) {
     return await User.findById(id);
 }
 
+
+//register new user 
 async function create(userParam) {
     // validate
-    if (await User.findOne({ username: userParam.username })) {
-        throw 'Username "' + userParam.username + '" is already taken';
+    if (await User.findOne({ email: userParam.email })) {
+        throw 'Username "' + userParam.email + '" is already taken';
     }
 
     const user = new User(userParam);
@@ -47,16 +54,21 @@ async function create(userParam) {
 
     // save user
     await user.save();
+
 }
 
+
+
+
+//update user details
 async function update(id, userParam) {
     const user = await User.findById(id);
 
     // validate
     if (!user) throw 'User not found';
-    if (user.username !== userParam.username && await User.findOne({ username: userParam.username })) {
-        throw 'Username "' + userParam.username + '" is already taken';
-    }
+    // if (user.email !== userParam.email && await User.findOne({ email: userParam.email })) {
+    //     throw 'Username "' + userParam.email + '" is already taken';
+    // }
 
     // hash password if it was entered
     if (userParam.password) {
@@ -68,6 +80,9 @@ async function update(id, userParam) {
 
     await user.save();
 }
+
+
+//delete user
 
 async function _delete(id) {
     await User.findByIdAndRemove(id);
