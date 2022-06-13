@@ -1,89 +1,37 @@
-﻿const config = require('config.json');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const db = require('_helpers/db');
-const User = db.User;
-const Application = db.Application;
+﻿import { ErrorResponse } from "../_helpers/errorResponse.js";
+import { generateJWT } from "../_helpers/generateJWT.js";
+import {
+  generatePasswordHash,
+  validatePassword,
+} from "../_helpers/hashPassword.js";
+import UserModel from "./user.model.js";
 
-module.exports = {
-    authenticate,
-    getAll,
-    getById,
-    create,
-    update,
-    createApplication,
-    delete: _delete
-    
-};
-
-
-//login authentication
-async function authenticate({ email, password }) {
-    const user = await User.findOne({ email });
-    if (user && bcrypt.compareSync(password, user.hash)) {
-        const token = jwt.sign({ sub: user.id }, config.secret, { expiresIn: '7d' });
-        return {
-            ...user.toJSON(),
-            token
-        };
-    }
+export async function createUser(userInfo) {
+  const { email, password:pwd } = userInfo;
+  if (
+    !/^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(
+      email
+    )
+  )
+    throw new ErrorResponse("Please enter a valid email", 400);
+  const user = await UserModel.findOne({ email });
+  if (user) throw new ErrorResponse("Email already in Use", 400);
+  if (!/^ *$/.test(pwd) && pwd.length < 8)
+    throw new ErrorResponse("Password must have at least 8 characters", 400);
+  const password = await generatePasswordHash(pwd);
+  return UserModel.create({ email, password });
 }
 
-async function getAll() {
-    return await User.find();
-}
-
-async function getById(id) {
-    return await User.findById(id);
-}
-
-
-//register new user 
-async function create(userParam) {
-    // validate
-    if (await User.findOne({ email: userParam.email })) {
-        throw 'Username "' + userParam.email + '" is already taken';
-    }
-
-    const user = new User(userParam);
-
-    // hash password
-    if (userParam.password) {
-        user.hash = bcrypt.hashSync(userParam.password, 10);
-    }
-
-    // save user
-    await user.save();
-
-}
-
-
-
-
-//update user details
-async function update(id, userParam) {
-    const user = await User.findById(id);
-
-    // validate
-    if (!user) throw 'User not found';
-    // if (user.email !== userParam.email && await User.findOne({ email: userParam.email })) {
-    //     throw 'Username "' + userParam.email + '" is already taken';
-    // }
-
-    // hash password if it was entered
-    if (userParam.password) {
-        userParam.hash = bcrypt.hashSync(userParam.password, 10);
-    }
-
-    // copy userParam properties to user
-    Object.assign(user, userParam);
-
-    await user.save();
-}
-
-
-//delete user
-
-async function _delete(id) {
-    await User.findByIdAndRemove(id);
+export async function loginUser(userInfo) {
+  const { email, password } = userInfo;
+  const user = await UserModel.findOne({ email });
+  if (!user) throw new ErrorResponse("Invalid Credentials", 403);
+  const matchPassword = await validatePassword(password, user.password);
+  if (!matchPassword) throw new ErrorResponse("Invalid Credentials", 403);
+  const token = await generateJWT(user._id);
+  const { password: pyd, ...usr } = user._doc;
+  return {
+    ...usr,
+    token,
+ };
 }
